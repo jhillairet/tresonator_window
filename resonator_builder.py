@@ -352,9 +352,12 @@ class ResonatorBuilder(widgets.VBox):
                 plt.clf()  # avoid superposing curves
                 ntwk = self.to_network(frequency)
 
-                ax=plt.gca()
+                ax = plt.gca()
+                ax = plt.subplot(2, 1, 1)
                 ax.plot(ntwk.frequency.f_scaled, ntwk.s_db.squeeze())
                 # find min and display
                 f_match = ntwk.frequency.f_scaled[np.argmin(ntwk.s_mag)]
                 ax.set_title(f'Match Freq: {f_match:0.2f} MHz')
                 ax.set_ylim(-30, 1)
+                
+                
