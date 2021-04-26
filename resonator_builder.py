@@ -3,7 +3,7 @@ import skrf as rf
 import matplotlib.pyplot as plt
 import numpy as np
 
-from IPython.display import clear_output
+from IPython.display import display, clear_output
 
 from skrf.media import Coaxial
 
@@ -28,7 +28,7 @@ class Section(widgets.VBox):
             Dictionnary containing the Section properties (optional)
             Keys are 'Dint', 'Dout', 'L', 'R' and 'sigma'
         '''
-        width = '200px'
+        width = '160px'
         self.kind = kind
 
         self.w_kind = widgets.Dropdown(
@@ -88,7 +88,7 @@ class Section(widgets.VBox):
         if self.kind == 'Line':
             UI = [self.w_kind, self.w_Dint, self.w_Dout, self.w_L, self.w_sigma]
         elif self.kind == 'Short':
-            UI = [self.w_kind, self.w_Dint, self.w_Dout, self.w_R]
+            UI = [self.w_kind,]
         elif self.kind == 'Tee':
             UI = [self.w_kind, self.w_Dint, self.w_Dout, self.w_sigma]
         return UI
@@ -220,11 +220,11 @@ class ResonatorBuilder(widgets.VBox):
         ]
         
     def add_section_to_the_left(self, change):
-        self.config.insert(0, Section())
+        self.config.insert(1, Section())
         self.__update_display()
 
     def add_section_to_the_right(self, change):
-        self.config.append(Section())
+        self.config.insert(-2, Section())
         self.__update_display()
             
     def del_section_to_the_left(self, change):
@@ -359,5 +359,6 @@ class ResonatorBuilder(widgets.VBox):
                 f_match = ntwk.frequency.f_scaled[np.argmin(ntwk.s_mag)]
                 ax.set_title(f'Match Freq: {f_match:0.2f} MHz')
                 ax.set_ylim(-30, 1)
+                
                 
                 
