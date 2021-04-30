@@ -46,7 +46,7 @@ class Section(widgets.VBox):
                                              layout=widgets.Layout(width=width, margin='0 0 0 -50px'))
         self.w_Dout= widgets.BoundedFloatText(description='Dout', value=230, min=100, max=400,
                                             layout=widgets.Layout(width=width, margin='0 0 0 -50px'))
-        self.w_L = widgets.BoundedFloatText(description='L', min=0, max=3000, value=100,
+        self.w_L = widgets.BoundedFloatText(description='L', min=0, max=8000, value=100,
                                      layout=widgets.Layout(width=width, margin='0 0 0 -50px'))
         self.w_sigma = widgets.Dropdown(
             value = 'Copper',
@@ -227,13 +227,20 @@ class ResonatorBuilder(widgets.VBox):
         self.frequency_band_w.observe(self.update_frequency_band)
 
         # Input Power
-        self.Pin_w = widgets.BoundedFloatText(value=50, min=1, max=200, description='Input Power [kW]', layout=widgets.Layout(width='150px'))
-        self.Pin_w.observe(self.update_Pin)
+        self.w_Pin = widgets.BoundedFloatText(value=50, min=1, max=200, description='Input Power [kW]', layout=widgets.Layout(width='150px'))
+        self.w_Pin.observe(self.update_Pin)
 
         # Configuration Manager
-        self.config_w = widgets.Dropdown(options=['Simple - 55 MHz', 'SSA50 - 62 MHz', 'SSA84 Window Example'], 
+        self.w_load = widgets.Button(description='Load Configuration')
+        self.w_load.on_click(self.load_config)
+
+        self.w_save = widgets.Button(description='Save Configuration')
+        self.w_save.on_click(self.save_config)
+        self.w_config_text = widgets.Textarea()
+
+        self.w_config = widgets.Dropdown(options=['Simple - 55 MHz', 'SSA50 - 62 MHz', 'SSA84 - FW Vmax', 'SSA84 - FW Imax'], 
                                          value='Simple - 55 MHz')
-        self.config_w.observe(self.update_config)
+        self.w_config.observe(self.update_config)
         self.set_config()
 
         self.fig, self.axes = plt.subplots(figsize=(10,6))
@@ -245,7 +252,11 @@ class ResonatorBuilder(widgets.VBox):
     @property
     def UI(self):
         return [
-            self.config_w,
+            widgets.HBox([
+                self.w_config,
+                self.w_load,
+                self.w_save,
+                ]),
             widgets.HBox([
                 widgets.VBox([self.w_add_left, self.w_del_left]),
                 *self.config,
@@ -254,12 +265,87 @@ class ResonatorBuilder(widgets.VBox):
             widgets.HBox([
                 self.frequency_band_w,
                 self.f_vi_w,
-                self.Pin_w,
+                self.w_Pin,
                 ]),
             self.w_plot,
             self.output,
+            self.w_config_text
         ]
 
+    def load_config(self, change):
+        try:
+            config = []
+            config_lines = self.w_config_text.value.split('\n')
+
+            for line in config_lines:
+                if line.startswith('# f_min'):
+                    f_min = float(line.split(' ')[2])
+                elif line.startswith('# f_max'):
+                    f_max = float(line.split(' ')[2])
+                elif line.startswith('# f_vi'):
+                    self.f_vi_w.value = float(line.split(' ')[2])
+                elif line.startswith('Line'):
+                    kind, Dint, Dout, Length, sigma, R = line.split(' ')
+                    config.append(Section(kind, config={
+                                                'Dint': float(Dint),
+                                                'Dout': float(Dout),
+                                                'L': float(Length),
+                                                'sigma': sigma
+                                                }))
+                elif line.startswith('Short'):
+                    kind, Dint, Dout, Length, sigma, R = line.split(' ')
+                    config.append(Section(kind, config={
+                                                'Dint': float(Dint),
+                                                'Dout': float(Dout),
+                                                'L': float(Length),
+                                                'R': float(R)
+                                                }))
+                elif line.startswith('Tee'):
+                    kind, Dint, Dout, Length, sigma, R = line.split(' ')
+                    config.append(Section(kind, config={
+                                                'Dint': float(Dint),
+                                                'Dout': float(Dout),
+                                                'sigma': sigma
+                                                }))
+            self.frequency_band_w.value = (f_min, f_max)                
+            self._config = config
+            self.__update_display()
+            
+        except Exception as e:
+            with self.output:
+                print(e)
+    
+    def save_config(self, change):
+        '''
+        Print the configuration in the Text area
+        '''
+        output_lines = self.config_to_str()
+                   
+        self.w_config_text.value = '\n'.join(output_lines)
+        
+    
+    def config_to_str(self) -> list:
+        '''
+        Returns the configuration as a list of string for saving purpose
+
+        Returns
+        -------
+        output_lines : list
+            T-Resonator Configuration
+
+        '''
+        # extract the configuration as a string
+        output_lines = []
+        output_lines.append('# T-Resonator Configuration')
+        output_lines.append(f'# f_min[MHz] {self.f_min}')
+        output_lines.append(f'# f_max[MHz] {self.f_max}')
+        output_lines.append(f'# f_vi[MHz] {self.f_vi_w.value}')
+        output_lines.append(f'# Pin[kW] {self.w_Pin.value}')       
+        output_lines.append('kind Dint[mm] Dout[mm] length[mm] sigma R[Ohm]')
+        for section in self.configuration:
+            output_lines.append(f"{section['kind']} {section.get('Dint', 'NaN')} {section.get('Dout', 'NaN')} {section.get('Length', 'NaN')} {section.get('sigma', 'NaN')} {section.get('R', 'NaN')}")
+
+        return output_lines
 
     def set_config(self, config_name: str = 'Simple - 55 MHz'):        
         if config_name == 'Simple - 55 MHz':
@@ -293,27 +379,44 @@ class ResonatorBuilder(widgets.VBox):
             self.frequency_band_w.value = [62, 63]
             self.f_vi_w.value = 62.64
 
-        elif config_name == 'SSA84 Window Example':
+        elif config_name == 'SSA84 - FW Vmax':
             self._config = [  
                 Section('Short', config={'Dint': 140, 'Dout': 230, 'R': 5e-3}),
-                Section('Line', config={'Dint': 140, 'Dout': 230, 'L': 200, 'sigma':'Copper'}),
+                Section('Line', config={'Dint': 140, 'Dout': 195, 'L': 3880, 'sigma':'Copper'}),
                 Section('Line', config={'Dint': 140, 'Dout': 195, 'L': 498.8, 'sigma':'Copper'}),  # DUT
                 Section('Line', config={'Dint': 140, 'Dout': 230, 'L': 200, 'sigma':'Copper'}),
-                Section('Line', config={'Dint': 140, 'Dout': 230, 'L': 1224, 'sigma':'Copper'}),
-                Section('Line', config={'Dint': 140, 'Dout': 410, 'L': 239, 'sigma':'Copper'}),
+                Section('Line', config={'Dint': 140, 'Dout': 386, 'L': 380, 'sigma':'Aluminium'}),
+                Section('Line', config={'Dint': 140, 'Dout': 230, 'L': 100, 'sigma':'Copper'}),
+                Section('Line', config={'Dint': 140, 'Dout': 230, 'L': 365, 'sigma':'Aluminium'}),
+                Section('Tee',  config={'Dint': 140, 'Dout': 230, 'sigma':'Aluminium'}),
+                Section('Line', config={'Dint': 140, 'Dout': 230, 'L': 380, 'sigma':'Aluminium'}),
+                Section('Line', config={'Dint': 194, 'Dout': 230, 'L': 180, 'sigma':'Copper'}),
+                Section('Line', config={'Dint': 140, 'Dout': 230, 'L': 2104, 'sigma':'Aluminium'}),
+                Section('Short', config={'Dint': 140, 'Dout': 230, 'R': 5e-3}),
+                ]
+            self.frequency_band_w.value = [54, 56]
+            self.f_vi_w.value = 55
+
+        elif config_name == 'SSA84 - FW Imax':
+            self._config = [  
+                Section('Short', config={'Dint': 140, 'Dout': 230, 'R': 5e-3}),
+                Section('Line', config={'Dint': 140, 'Dout': 195, 'L': 2665, 'sigma':'Copper'}),
+                Section('Line', config={'Dint': 140, 'Dout': 195, 'L': 498.8, 'sigma':'Copper'}),  # DUT
+                Section('Line', config={'Dint': 140, 'Dout': 230, 'L': 1600, 'sigma':'Copper'}),
+                Section('Line', config={'Dint': 140, 'Dout': 386, 'L': 380, 'sigma':'Copper'}),
                 Section('Line', config={'Dint': 140, 'Dout': 230, 'L': 100, 'sigma':'Silver'}),
-                Section('Line', config={'Dint': 140, 'Dout': 230, 'L': 200, 'sigma':'Silver'}),
-                Section('Tee',  config={'Dint': 140, 'Dout': 230, 'sigma':'Silver'}),
-                Section('Line', config={'Dint': 140, 'Dout': 230, 'L': 200, 'sigma':'Silver'}),
-                Section('Line', config={'Dint': 130, 'Dout': 294, 'L': 180, 'sigma':'Silver'}),
-                Section('Line', config={'Dint': 140, 'Dout': 230, 'L': 2240, 'sigma':'Aluminium'}),
-                Section('Short', config={'Dint': 140, 'Dout': 219, 'R': 5e-3}),
+                Section('Line', config={'Dint': 140, 'Dout': 230, 'L': 365, 'sigma':'Aluminium'}),
+                Section('Tee',  config={'Dint': 140, 'Dout': 230, 'sigma':'Aluminium'}),
+                Section('Line', config={'Dint': 140, 'Dout': 230, 'L': 380, 'sigma':'Aluminium'}),
+                Section('Line', config={'Dint': 194, 'Dout': 230, 'L': 180, 'sigma':'Copper'}),
+                Section('Line', config={'Dint': 140, 'Dout': 230, 'L': 2104, 'sigma':'Aluminium'}),
+                Section('Short', config={'Dint': 140, 'Dout': 230, 'R': 5e-3}),
                 ]
             self.frequency_band_w.value = [54, 56]
             self.f_vi_w.value = 55
 
     def update_config(self, change):
-        self.set_config(self.config_w.value)
+        self.set_config(self.w_config.value)
         self.__update_display()
 
     def update_f_vi(self, change):
@@ -328,7 +431,7 @@ class ResonatorBuilder(widgets.VBox):
 
     @property
     def Pin(self):
-        return self.Pin_w.value
+        return self.w_Pin.value
 
     @property
     def f_min(self):
