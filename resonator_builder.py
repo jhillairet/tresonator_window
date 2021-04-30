@@ -246,11 +246,21 @@ class ResonatorBuilder(widgets.VBox):
         self.fig, self.axes = plt.subplots(figsize=(10,6))
     
         self.__update_display()
+        
         super().__init__(children=self.UI)
 
 
     @property
-    def UI(self):
+    def UI(self) -> list:
+        '''
+        Returns the widgets list to be inserted in a VBox widget
+
+        Returns
+        -------
+        UI : list of widgets
+            List of widgets to be used when creating the VBox 
+
+        '''
         return [
             widgets.HBox([
                 self.w_config,
@@ -273,6 +283,9 @@ class ResonatorBuilder(widgets.VBox):
         ]
 
     def load_config(self, change):
+        '''
+        Load the configuration from the Textarea and update the GUI
+        '''
         try:
             config = []
             config_lines = self.w_config_text.value.split('\n')
@@ -317,7 +330,7 @@ class ResonatorBuilder(widgets.VBox):
     
     def save_config(self, change):
         '''
-        Print the configuration in the Text area
+        Print the configuration in the Textarea
         '''
         output_lines = self.config_to_str()
                    
@@ -468,6 +481,7 @@ class ResonatorBuilder(widgets.VBox):
         for section in self.config:
             for child in section.children:
                 child.observe(self.update_plot)
+        self.save_config(None)
 
     @property
     def config(self) -> list:
