@@ -219,11 +219,11 @@ class ResonatorBuilder(widgets.VBox):
 
         self.f_vi = 55  # MHz
         # frequency for voltage and current plot
-        self.f_vi_w = widgets.BoundedFloatText(value=self.f_vi, min=45, max=65, step=0.1, description='V/I plot frequency [MHz]', layout=widgets.Layout(width='150px'))
+        self.f_vi_w = widgets.BoundedFloatText(value=self.f_vi, min=45, max=200, step=0.1, description='V/I plot frequency [MHz]', layout=widgets.Layout(width='150px'))
         self.f_vi_w.observe(self.update_f_vi)
 
         # frequency band for S11 plot
-        self.frequency_band_w = widgets.FloatRangeSlider(value=[self.f_vi - 1, self.f_vi + 1], min=45, max=65, step=0.1, readout=True, readout_format=".1f",)
+        self.frequency_band_w = widgets.FloatRangeSlider(value=[self.f_vi - 1, self.f_vi + 1], min=45, max=200, step=0.1, readout=True, readout_format=".1f",)
         self.frequency_band_w.observe(self.update_frequency_band)
 
         # Input Power
@@ -238,7 +238,11 @@ class ResonatorBuilder(widgets.VBox):
         self.w_save.on_click(self.save_config)
         self.w_config_text = widgets.Textarea()
 
-        self.w_config = widgets.Dropdown(options=['Simple - 55 MHz', 'SSA50 - 62 MHz', 'SSA84 - FW Vmax', 'SSA84 - FW Imax'], 
+        self.w_config = widgets.Dropdown(options=['Simple - 55 MHz', 
+                                                  'SSA50 - 62 MHz', 
+                                                  'SSA84',
+                                                  'SSA84 - FW Vmax', 
+                                                  'SSA84 - FW Imax'], 
                                          value='Simple - 55 MHz')
         self.w_config.observe(self.update_config)
         self.set_config()
@@ -392,6 +396,25 @@ class ResonatorBuilder(widgets.VBox):
             self.frequency_band_w.value = [62, 63]
             self.f_vi_w.value = 62.64
 
+        elif config_name == 'SSA84':
+            # T-Resonator SSA-84: config matching the measurements
+            self._config = [  
+                Section('Short', config={'Dint': 127.9, 'Dout': 219, 'R': 0.012}),
+                Section('Line', config={'Dint': 127.9, 'Dout': 219, 'L': 21, 'sigma':'Copper'}),
+                Section('Line', config={'Dint': 168.3, 'Dout': 230, 'L': 1100, 'sigma':'Copper'}),
+                Section('Line', config={'Dint': 140, 'Dout': 230, 'L': 1021, 'sigma':'Copper'}),
+                Section('Line', config={'Dint': 100, 'Dout': 230, 'L': 100, 'sigma':'Silver'}),
+                Section('Line', config={'Dint': 140, 'Dout': 230, 'L': 114, 'sigma':'Silver'}),
+                Section('Tee',  config={'Dint': 140, 'Dout': 230, 'sigma':'Silver'}),
+                Section('Line', config={'Dint': 140, 'Dout': 230, 'L': 728, 'sigma':'Silver'}),
+                Section('Line', config={'Dint': 100, 'Dout': 230, 'L': 100, 'sigma':'Silver'}),
+                Section('Line', config={'Dint': 140, 'Dout': 230, 'L': 1512, 'sigma':'Steel'}),
+                Section('Line', config={'Dint': 140, 'Dout': 219, 'L': 149, 'sigma':'Steel'}),
+                Section('Short', config={'Dint': 140, 'Dout': 219, 'R': 1e-3}),
+                ]
+            self.frequency_band_w.value = [61, 62]
+            self.f_vi_w.value = 61.76
+
         elif config_name == 'SSA84 - FW Vmax':
             self._config = [  
                 Section('Short', config={'Dint': 140, 'Dout': 230, 'R': 5e-3}),
@@ -405,7 +428,7 @@ class ResonatorBuilder(widgets.VBox):
                 Section('Line', config={'Dint': 140, 'Dout': 230, 'L': 380, 'sigma':'Aluminium'}),
                 Section('Line', config={'Dint': 194, 'Dout': 230, 'L': 180, 'sigma':'Copper'}),
                 Section('Line', config={'Dint': 140, 'Dout': 230, 'L': 2104, 'sigma':'Aluminium'}),
-                Section('Short', config={'Dint': 140, 'Dout': 230, 'R': 5e-3}),
+                Section('Short', config={'Dint': 140, 'Dout': 230, 'R': 1e-3}),
                 ]
             self.frequency_band_w.value = [54, 56]
             self.f_vi_w.value = 55
