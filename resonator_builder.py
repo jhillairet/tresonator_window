@@ -227,7 +227,7 @@ class ResonatorBuilder(widgets.VBox):
         self.frequency_band_w.observe(self.update_frequency_band)
 
         # Input Power
-        self.w_Pin = widgets.BoundedFloatText(value=50, min=1, max=200, description='Input Power [kW]', layout=widgets.Layout(width='150px'))
+        self.w_Pin = widgets.BoundedFloatText(value=50, min=0.001, max=200, description='Input Power [kW]', layout=widgets.Layout(width='150px'))
         self.w_Pin.observe(self.update_Pin)
 
         # Configuration Manager
@@ -250,6 +250,10 @@ class ResonatorBuilder(widgets.VBox):
         self.fig, self.axes = plt.subplots(figsize=(10,6))
     
         self.__update_display()
+        
+        self.L_Vprobe_CEA_fromT = 1.236
+        self.L_Vprobe_DUT_fromT = 0.660
+        
         
         super().__init__(children=self.UI)
 
@@ -399,8 +403,8 @@ class ResonatorBuilder(widgets.VBox):
         elif config_name == 'SSA84':
             # T-Resonator SSA-84: config matching the measurements
             self._config = [  
-                Section('Short', config={'Dint': 127.9, 'Dout': 219, 'R': 0.012}),
-                Section('Line', config={'Dint': 127.9, 'Dout': 219, 'L': 21, 'sigma':'Copper'}),
+                Section('Short', config={'Dint': 127.9, 'Dout': 219, 'R': 0.01326}),
+                Section('Line', config={'Dint': 127.9, 'Dout': 219, 'L': 22.6, 'sigma':'Copper'}),
                 Section('Line', config={'Dint': 168.3, 'Dout': 230, 'L': 1100, 'sigma':'Copper'}),
                 Section('Line', config={'Dint': 140, 'Dout': 230, 'L': 1021, 'sigma':'Copper'}),
                 Section('Line', config={'Dint': 100, 'Dout': 230, 'L': 100, 'sigma':'Silver'}),
@@ -409,11 +413,11 @@ class ResonatorBuilder(widgets.VBox):
                 Section('Line', config={'Dint': 140, 'Dout': 230, 'L': 728, 'sigma':'Silver'}),
                 Section('Line', config={'Dint': 100, 'Dout': 230, 'L': 100, 'sigma':'Silver'}),
                 Section('Line', config={'Dint': 140, 'Dout': 230, 'L': 1512, 'sigma':'Steel'}),
-                Section('Line', config={'Dint': 140, 'Dout': 219, 'L': 149, 'sigma':'Steel'}),
-                Section('Short', config={'Dint': 140, 'Dout': 219, 'R': 1e-3}),
+                Section('Line', config={'Dint': 140, 'Dout': 219, 'L': 147, 'sigma':'Steel'}),
+                Section('Short', config={'Dint': 140, 'Dout': 219, 'R': 1e-5}),
                 ]
             self.frequency_band_w.value = [61, 62]
-            self.f_vi_w.value = 61.76
+            self.f_vi_w.value = 61.737
 
         elif config_name == 'SSA84 - FW Vmax':
             self._config = [  
@@ -661,6 +665,7 @@ class ResonatorBuilder(widgets.VBox):
                 frequency = rf.Frequency(f0, f0, unit='MHz', npoints=1)
                 Pin = self.Pin * 1e3  # W
                 L_left, L_right, V_left, V_right, I_left, I_right = self.voltage_current(frequency, Pin)
+                V_CEA, V_DUT = self.voltages_at_probes(frequency, Pin)
 
                 # Voltages
                 ax2 = plt.subplot(3, 1, 2)
@@ -671,6 +676,10 @@ class ResonatorBuilder(widgets.VBox):
                 ax2.set_ylabel('V [kV]')
                 ax2.set_xticks([])
                 ax2.set_xticks([], minor=True)
+                ax2.axvline(1.236, ls='--', color='gray', lw=3)
+                ax2.axvline(-0.660, ls='--', color='gray', lw=3)
+                ax2.text(self.L_Vprobe_CEA_fromT+0.1, 40, f"{np.abs(V_CEA)/1e3:0.2f}")
+                ax2.text(-self.L_Vprobe_DUT_fromT+0.1, 40, f"{np.abs(V_DUT)/1e3:0.2f}")         
                 # Currents
                 ax3 = plt.subplot(3, 1, 3)
                 ax3.plot(L_right, np.abs(I_right)/1e3)
@@ -678,8 +687,10 @@ class ResonatorBuilder(widgets.VBox):
                 ax3.set_ylim(0, 4)
                 ax3.set_ylabel('I [kA]')
                 ax3.axhline(2.7, ls='--', color='gray')
+                ax3.axvline(self.L_Vprobe_CEA_fromT, ls='--', color='gray', lw=3)
+                ax3.axvline(-self.L_Vprobe_DUT_fromT, ls='--', color='gray', lw=3)
                 
-
+                
     def voltage_current_branch(self, frequency, Zin, Zbranch, TL_indexes, R, P_in):
         '''
         Calculate Voltages and Currents along a resonator branch.
@@ -746,6 +757,15 @@ class ResonatorBuilder(widgets.VBox):
         L = np.concatenate([_L for _L in L_full])
 
         return L, V, I, Z
+    
+    def voltages_at_probes(self, frequency, P_in):
+        L_left, L_right, V_left, V_right, I_left, I_right = self.voltage_current(frequency, P_in)
+        
+        
+        V_DUT = V_left[np.argmin(np.abs(L_left - self.L_Vprobe_DUT_fromT))] 
+        V_CEA = V_right[np.argmin(np.abs(L_right - self.L_Vprobe_CEA_fromT))]
+        return V_CEA, V_DUT
+
 
     def voltage_current(self, frequency, P_in):
         '''
